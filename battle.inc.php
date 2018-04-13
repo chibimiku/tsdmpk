@@ -7,8 +7,10 @@ if(!defined('IN_DISCUZ')) {
 	exit('Access Denied');
 }
 
+require_once libfile('function/tsdmutil'); //读取通用lib
+
 /*
- * 流程：init_battle -> init_user_group -> spawn_monsters -> [input -> generate_action_list -> do_actions -> result] loop -> summary
+ * 流程：init_battle -> init_user_group -> spawn_monsters -> [input -> generate_action_list -> do_actions -> result] (loop) -> summary
  * 
  */
 
@@ -34,7 +36,8 @@ if(isset($_G['gp_battle_input'])){
 	}
 	
 	//action的原型：
-	$do_action = array('from_id' => 0, 'to_id' => 0, 'action_id' => 0);
+	//$do_action = array('from_id' => 0, 'to_id' => 0, 'action_id' => 0);
+	
 	
 	switch ($_G['gp_battle_action']){ //TODO 执行实际的动作
 		case 'attack':
@@ -50,7 +53,7 @@ if(isset($_G['gp_battle_input'])){
 		DB::update_value_parm('plugin_tsdmpk_battle', 'turns', '+', 1, 'battle_id=?', array($battle_id));
 	}
 }
- 
+
 //初始化一个bat
 function init_battle($map_id){
 	global $_G;
@@ -93,6 +96,43 @@ function init_user_group($battle_id, $is_enemy = false){
 function spawn_monsters($battle_id, $map_id){
 	//按设定是先 load 一下原型列表后再生成，这里作为测试用先从简，直接用copy的生成。
 	DB::insert('plugin_tsdmpk_monster', array('monster_id' => 1));
+}
+
+function generate_action_list($user_chars, $monsters_chars, $user_actions){
+	//TODO: 按规则书设计生成action list.
+	$action_list = array();
+	//TODO: 合并后按speed决定值排序，生成action_list.
+	//现在是先user行动，然后monster行动的.这比较弱智…
+	foreach($user_actions as $row){
+		$action_list[] = $row;
+	}
+	
+	//生成user的chars id供mon选取id用
+	$user_ids = array();
+	foreach($user_chars as $row){
+		$user_ids[] = $row['char_id'];
+	}
+	foreach($monster_chars as $mon){
+		$action_list[] = monster_do_simple_attack_action($mon['monster_id'], $user_ids);
+	}
+	
+	return $action_list;
+}
+
+function do_actions($action_list){
+	foreach($action_list as $row){
+		if($row['is_mon']){
+			//DB::update_value_parm('plugin_tsdmpk_plugin_tsdmpk_char', '');
+		}else{
+			//DB::update_value_parm('plugin_tsdmpk_monter', );
+		}
+	}
+}
+
+//monster 随机选择目标反应
+function monster_do_simple_attack_action($monster_imp_id, $targets){
+	$final_target_id = $targets[array_rand($targets,1)];
+	return array('to_id' => array($final_target_id), 'from_id' => $monster_imp_id, 'skill_id' => 1, 'is_mon' => 1); //1是norm attack ，注意to_id为array，支持多个目标。
 }
 
 ?>
