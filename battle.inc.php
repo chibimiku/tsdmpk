@@ -7,6 +7,17 @@ if(!defined('IN_DISCUZ')) {
 	exit('Access Denied');
 }
 
+//action类
+class battle_action{
+	var $owner_id;
+	var $target_id;
+	
+	function __construct($owner_id, $target_id){
+		$this->owner_id = $owner_id;
+		$this->target_id = $target_id;
+	}
+}
+
 require_once libfile('function/tsdmutil'); //读取通用lib
 
 /*
@@ -14,7 +25,10 @@ require_once libfile('function/tsdmutil'); //读取通用lib
  * 
  */
 
+ //执行操作，并输出 console log
 if(isset($_G['gp_battle_input'])){
+	
+	$message = '';
 	//load battle info.
 	$battle_id = intval($_G['gp_battle_id']);
 	$battle_info = DB::fetch_first_parm('plugin_tsdmpk_battle', '*', 'battle_id=?', array($battle_id));
@@ -34,7 +48,7 @@ if(isset($_G['gp_battle_input'])){
 			$inputs[$key] = $row;
 		}
 	}
-	
+	output_info($message);
 	//action的原型：
 	//$do_action = array('from_id' => 0, 'to_id' => 0, 'action_id' => 0);
 	
@@ -50,8 +64,10 @@ if(isset($_G['gp_battle_input'])){
 		//into summary for this turn.
 		
 		//check if battle ends.
-		DB::update_value_parm('plugin_tsdmpk_battle', 'turns', '+', 1, 'battle_id=?', array($battle_id));
+		DB::update_value_parm('plugin_tsdmpk_battle', 'turns', '+', 1, 'battle_id=?', array($battle_id)); //更新turn数
 	}
+	
+	
 }
 
 //初始化一个bat
@@ -130,9 +146,80 @@ function do_actions($action_list){
 }
 
 //monster 随机选择目标反应
-function monster_do_simple_attack_action($monster_imp_id, $targets){
+function monster_do_simple_attack_action($monster_imp_id, $targets, $skill_id = 1){
 	$final_target_id = $targets[array_rand($targets,1)];
-	return array('to_id' => array($final_target_id), 'from_id' => $monster_imp_id, 'skill_id' => 1, 'is_mon' => 1); //1是norm attack ，注意to_id为array，支持多个目标。
+	return array('to_id' => array($final_target_id), 'from_id' => $monster_imp_id, 'skill_id' => $skill_id, 'is_mon' => 1); //1是norm attack ，注意to_id为array，支持多个目标。
+}
+
+//根据 rules 进行计算，返回dmg数量
+//注意
+function rules_calc_dmg($from_char, $to_char, $skill_id, $pool_cost){
+	$skill_info = DB::fetch_first_parm('plugin_tsdmpk_skill', '*', 'skill_id=?', array($skill_id));
+	if(!$skill_info){
+		output_info('err_tsdmpk_no_skill');
+		return false;
+	}
+	$real_enegry = $from_char[rules_calc_dmg($skill_info['type'])] + $pool_cost;
+	
+	//check for hits. 
+	$speed_difference = $from_char['speed_current'] + $from_char['speed_edge'] - $to_char['speed_current'] - $to_char['speed_edge'];
+	//根据diff做个差异修正，这里临时先用这个计算方法。Armor class被我吃了…
+	$is_hit = false;
+	$hit_rate = min(1, 0.75 + $speed_difference * 0.2) * 100;
+	$roll = rand(1,100);
+	if($roll <= $hit_rate){
+		$is_hit = true;
+	}
+	if($is_hit){
+		//计算实际的dmg值，这个减免也被我吃了。
+		//TODO 根据$to_char的armor减免.
+		$real_dmg = $skill_info['base_dmg'] + ($pool_cost * $skill_info['addtional_dmg']);
+		//进行$real_dmg的计算
+		return $real_dmg;
+	}else{
+		return 0;
+	}
+}
+
+//实际进行action并进行结算.
+function do_dmg($from_image_id, $to_image_id, $skill_id, $pool_cost){
+	//TODO：进一步检查char的所有权
+	$from_char = DB::fetch_first_parm('');
+}
+
+//---------------一些数据转化工具------------
+//从 plugin_tsdmpk_battle_chars 里获取 in battle 的镜像
+function image_id_to_real_id($image_id){
+	$rs = DB::fetch_first_parm('plugin_tsdmpk_battle_chars', 'char_id', 'image_id=?', $image_id);
+	if(!$rs){
+		output_info('err_cannot_find_real_id:'.$image_id);
+		return 0;
+	}
+	$ret_id = 0;
+	return array('target_id' => $rs['char_id'], 'target_type' => $rs['type']);
+}
+
+//从 plugin_tsdmpk_battle_chars 里的ID获取实际char/monster的信息。
+function image_id_to_real_info($image_id){
+	$my_data = image_id_to_real_id($image_id);
+	if($my_data['type'] == 0){ //type == 0: pc, type == 1: monster
+	}elseif($my_data['type'] == 1){
+	}
+}
+
+//把skill下面的type转化为对应的pool key名称
+function get_pool_key($skill_type){
+	$key_array = array(0 => 'might_current', 1 => 'speed_current', 2 => 'intellect_current');
+	return $key_array[$skill_type];
+}
+
+//----------------------一些系统方法的封装--------------
+//
+
+//以json格式返回
+function output_info($message, $is_ok = true){
+	$info_array = array('message' => $message, 'status' => $is_ok ? 1 : 0);
+	echo json_encode($info_array);
 }
 
 ?>
