@@ -48,10 +48,10 @@ if(isset($_G['gp_battle_input'])){
 			$inputs[$key] = $row;
 		}
 	}
-	output_info($message);
+	
 	//action的原型：
 	//$do_action = array('from_id' => 0, 'to_id' => 0, 'action_id' => 0);
-	
+	output_info($message);
 	
 	switch ($_G['gp_battle_action']){ //TODO 执行实际的动作
 		case 'attack':
@@ -203,7 +203,9 @@ function image_id_to_real_id($image_id){
 function image_id_to_real_info($image_id){
 	$my_data = image_id_to_real_id($image_id);
 	if($my_data['type'] == 0){ //type == 0: pc, type == 1: monster
+		return DB::fetch_first_parm('plugin_tsdmpk_char', '*', 'char_id=?', $my_data['char_id']);
 	}elseif($my_data['type'] == 1){
+		return DB::fetch_first_parm('plugin_tsdmpk_monster', '*', 'monster_imp_id=?', $my_data['char_id']);
 	}
 }
 
