@@ -181,13 +181,21 @@ function rules_calc_dmg($from_char, $to_char, $skill_id, $pool_cost){
 	}
 }
 
-//实际进行action并进行结算.
+//实际进行action，并进行结算（写入到实际char状态中去）.
 function do_dmg($from_image_id, $to_image_id, $skill_id, $pool_cost){
-	//TODO：进一步检查char的所有权
-	$from_char = DB::fetch_first_parm('');
+	//TODO：进一步检查char的所有权.
+	$from_info = image_id_to_real_info($from_image_id);
+	$to_info = image_id_to_real_info($to_image_id);
+	
+	//TODO: 消耗掉 from_char的pool
+	$from_table_info = get_table_info($from_info['type']);
+	$to_table_info = get_table_info($to_info['type']);
+	
+	$dmg_value = rules_calc_dmg($from_info, $to_info, $skill_id, $pool_cost);
+	
 }
 
-//---------------一些数据转化工具------------
+//---------------  一些数据转化工具  --------------
 //从 plugin_tsdmpk_battle_chars 里获取 in battle 的镜像
 function image_id_to_real_id($image_id){
 	$rs = DB::fetch_first_parm('plugin_tsdmpk_battle_chars', 'char_id', 'image_id=?', $image_id);
@@ -203,16 +211,31 @@ function image_id_to_real_id($image_id){
 function image_id_to_real_info($image_id){
 	$my_data = image_id_to_real_id($image_id);
 	if($my_data['type'] == 0){ //type == 0: pc, type == 1: monster
-		return DB::fetch_first_parm('plugin_tsdmpk_char', '*', 'char_id=?', $my_data['char_id']);
+		$rs = DB::fetch_first_parm('plugin_tsdmpk_char', '*', 'char_id=?', $my_data['char_id']);
 	}elseif($my_data['type'] == 1){
-		return DB::fetch_first_parm('plugin_tsdmpk_monster', '*', 'monster_imp_id=?', $my_data['char_id']);
+		$rs = DB::fetch_first_parm('plugin_tsdmpk_monster', '*', 'monster_imp_id=?', $my_data['char_id']);
 	}
+	if(!isset($rs)){
+		return false;
+	}
+	$rs['type'] = $my_data['type']; //把type返回上去，以在上层进行实际操作的时候写入正确的表
+	return $rs;
 }
 
 //把skill下面的type转化为对应的pool key名称
+//用于读取参与互动的当前char的值
 function get_pool_key($skill_type){
 	$key_array = array(0 => 'might_current', 1 => 'speed_current', 2 => 'intellect_current');
 	return $key_array[$skill_type];
+}
+
+//根据type返回表名和对应的primary key名(跟DB一致的约定)
+//主要是用于update的时候，写表的表名和key需要根据type改变。
+function get_table_info($type){
+	if($type === 0){
+		return array('table_name' => 'plugin_tsdmpk_char', 'pri_key' => 'char_id'); //这里用键名的方式清晰一些。
+	}
+	return array('table_name' => 'plugin_tsdmpk_monster', 'pri_key' => 'monster_imp_id');
 }
 
 //----------------------一些系统方法的封装--------------
