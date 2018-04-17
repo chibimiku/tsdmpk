@@ -183,14 +183,20 @@ function rules_calc_dmg($from_char, $to_char, $skill_id, $pool_cost){
 
 //实际进行action，并进行结算（写入到实际char状态中去）.
 function do_dmg($from_image_id, $to_image_id, $skill_id, $pool_cost){
+	$skill_info = DB::fetch_first_parm('plugin_tsdmpk_skill', '*', 'skill_id=?', array($skill_id));
+	
 	//TODO：进一步检查char的所有权.
 	$from_info = image_id_to_real_info($from_image_id);
 	$to_info = image_id_to_real_info($to_image_id);
 	
-	//TODO: 消耗掉 from_char的pool
+	//load一下表名
 	$from_table_info = get_table_info($from_info['type']);
 	$to_table_info = get_table_info($to_info['type']);
 	
+	//消耗掉 from_char的pool
+	DB::update_value_parm($from_table_info['table_name'], get_pool_key($skill_info['type']), '-', $pool_cost, $from_table_info['pri_key'].'=?', array($battle_id)); //更新pool的数值
+	
+	//真正处理dmg并写入到实际char数据中，输出log。
 	$dmg_value = rules_calc_dmg($from_info, $to_info, $skill_id, $pool_cost);
 	
 }
