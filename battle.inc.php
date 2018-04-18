@@ -110,8 +110,16 @@ function init_user_group($battle_id, $is_enemy = false){
 }
 
 function spawn_monsters($battle_id, $map_id){
-	//按设定是先 load 一下原型列表后再生成，这里作为测试用先从简，直接用copy的生成。
-	DB::insert('plugin_tsdmpk_monster', array('monster_id' => 1));
+	//先从monsters prototype里随机取1条生成enemy。 这里$map_id没有用到。按最后的设计是：
+	//(1)从map_id取map对应的monster group (2)根据monster group 取得若干monster prototype id (3)从monster prototype 
+	//现在省略第一步，先随机取2条monster.
+	$mon_infos = DB::result_array_parm('plugin_tsdmpk_monster_prototype', '*', '1=1');
+	$mon_key = array_rand($mon_infos);
+	$insert_mon = $mon_infos[$mon_key];
+	$insert_mon['battle_id'] = $battle_id;
+		
+	DB::insert('plugin_tsdmpk_monter',$insert_mon));
+	$new_mon_id = DB::insert_id();
 }
 
 function generate_action_list($user_chars, $monsters_chars, $user_actions){
@@ -153,13 +161,13 @@ function monster_do_simple_attack_action($monster_imp_id, $targets, $skill_id = 
 
 //根据 rules 进行计算，返回dmg数量
 //注意
-function rules_calc_dmg($from_char, $to_char, $skill_id, $pool_cost){
+function calc_skill_dmg($from_char, $to_char, $skill_id, $pool_cost){
 	$skill_info = DB::fetch_first_parm('plugin_tsdmpk_skill', '*', 'skill_id=?', array($skill_id));
 	if(!$skill_info){
 		output_info('err_tsdmpk_no_skill');
 		return false;
 	}
-	$real_enegry = $from_char[rules_calc_dmg($skill_info['type'])] + $pool_cost;
+	$real_enegry = $from_char[get_pool_key($skill_info['type'])] + $pool_cost;
 	
 	//check for hits. 
 	$speed_difference = $from_char['speed_current'] + $from_char['speed_edge'] - $to_char['speed_current'] - $to_char['speed_edge'];
@@ -181,6 +189,11 @@ function rules_calc_dmg($from_char, $to_char, $skill_id, $pool_cost){
 	}
 }
 
+//根据weapon和effect计算weapon的dmg
+function calc_weapon_dmg($from_image_id, $to_image_id, $weapon_id, $pool_cost){
+	
+}
+
 //实际进行action，并进行结算（写入到实际char状态中去）.
 function do_dmg($from_image_id, $to_image_id, $skill_id, $pool_cost){
 	$skill_info = DB::fetch_first_parm('plugin_tsdmpk_skill', '*', 'skill_id=?', array($skill_id));
@@ -196,8 +209,8 @@ function do_dmg($from_image_id, $to_image_id, $skill_id, $pool_cost){
 	//消耗掉 from_char的pool
 	DB::update_value_parm($from_table_info['table_name'], get_pool_key($skill_info['type']), '-', $pool_cost, $from_table_info['pri_key'].'=?', array($battle_id)); //更新pool的数值
 	
-	//真正处理dmg并写入到实际char数据中，输出log。
-	$dmg_value = rules_calc_dmg($from_info, $to_info, $skill_id, $pool_cost);
+	//真正处理dmg并写入到实际char数据中，输出log。这里未完成
+	$dmg_value = calc_skill_dmg($from_info, $to_info, $skill_id, $pool_cost);
 	
 }
 
